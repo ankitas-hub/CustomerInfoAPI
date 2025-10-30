@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <db:config name="MySQL_DB_Config" doc:name="MySQL DB Config" doc:id="db-config">
+        <db:generic-connection url="${db.url}" driverClassName="com.mysql.cj.jdbc.Driver" user="${db.user}" password="${db.password}"/>
+    </db:config>
+
+    <http:listener-config name="HTTP_Listener_config" host="0.0.0.0" port="8081" doc:name="HTTP Listener config"/>
+
+    <!-- Get Customer by ID -->
+    <flow name="get-customer-flow" doc:id="get-customer-flow">
+        <http:listener doc:name="Listener" doc:id="http-listener" config-ref="HTTP_Listener_config" path="/api/customer/{id}"/>
+        <logger level="INFO" message="Incoming GET /api/customer/{id} : #[vars.id]" />
+
+        <db:select doc:name="Select Customer" doc:id="db-select">
+            <db:sql>SELECT customer_id, name, email, phone FROM customers WHERE customer_id = :id</db:sql>
+            <db:input-parameters>
+                <db:input-parameter key="id" value="#[vars.id as Number]"/>
+            </db:input-parameters>
+        </db:select>
+
+        <choice doc:name="Choice - check result" doc:id="choice-check">
+            <when expression="#[payload.size() > 0]">
+                <ee:transform doc:name="Transform to JSON" doc:id="transform-1" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/dw">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  customerId: payload[0].customer_id,
+  name: payload[0].name,
+  email: payload[0].email,
+  phone: payload[0].phone
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <logger level="INFO" message="Found customer: #[payload.customerId]" />
+            </when>
+            <otherwise>
+                <set-variable variableName="requestedId" value="#[vars.id]" />
+                <set-payload value='{"error":"Customer not found","customerId":#[vars.requestedId]}' mimeType="application/json"/>
+                <logger level="INFO" message="Customer not found: #[vars.requestedId]" />
+                <set-property propertyName="http.status" value="404"/>
+            </otherwise>
+        </choice>
+    </flow>
+
+    <!-- Create Customer (POST) -->
+    <flow name="create-customer-flow" doc:id="create-customer-flow">
+        <http:listener doc:name="Listener" doc:id="http-listener-post" config-ref="HTTP_Listener_config" path="/api/customer"/>
+        <logger level="INFO" message="Incoming POST /api/customer : #[payload]" />
+        <ee:transform doc:name="Validate & Map" doc:id="transform-2" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/dw">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+  customer_id: payload.customerId as Number,
+  name: payload.name as String,
+  email: payload.email as String,
+  phone: payload.phone as String
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <db:insert doc:name="Insert Customer" doc:id="db-insert">
+            <db:sql>INSERT INTO customers (customer_id, name, email, phone) VALUES (:customer_id, :name, :email, :phone)</db:sql>
+            <db:input-parameters>
+                <db:input-parameter key="customer_id" value="#[payload.customer_id]"/>
+                <db:input-parameter key="name" value="#[payload.name]"/>
+                <db:input-parameter key="email" value="#[payload.email]"/>
+                <db:input-parameter key="phone" value="#[payload.phone]"/>
+            </db:input-parameters>
+        </db:insert>
+
+        <ee:transform doc:name="Return Created" doc:id="transform-3" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/dw">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  customerId: payload.customer_id,
+  name: payload.name,
+  email: payload.email,
+  phone: payload.phone
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <set-property propertyName="http.status" value="201"/>
+    </flow>
+
+    <!-- Global error handling -->
+    <error-handler doc:name="Error Handler">
+        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate">
+            <set-payload value='{"error":"An internal error occurred","details":"#[error.description]"}' mimeType="application/json"/>
+            <set-property propertyName="http.status" value="500"/>
+        </on-error-propagate>
+    </error-handler>
+
+</mule>
