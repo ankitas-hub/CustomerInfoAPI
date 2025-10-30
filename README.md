@@ -99,11 +99,3 @@ Create a new customer (JSON body):
 Response: `201 Created` with created customer JSON.
 
 ---
-
-## Notes for Interviews
-- Explain the flow: HTTP Listener → Database Connector → DataWeave transformation → Response.
-- Mention error handling for missing customers and DB exceptions.
-- Mention use of properties for DB credentials and how to change them.
-- Suggest enhancements: validations, PUT/DELETE endpoints, authentication (OAuth2 or Basic), API spec (RAML/OpenAPI), deploy to CloudHub.
-
----
