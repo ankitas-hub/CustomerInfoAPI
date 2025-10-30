@@ -1,5 +1,10 @@
 # CustomerInfoAPI (MuleSoft) - Beginner Project
 
+markdown
+![MuleSoft](https://img.shields.io/badge/MuleSoft-4.x-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-Completed-success)
+
 **Project Goal**
 Build a simple REST API using MuleSoft (Anypoint Studio / Mule Runtime 4.x) that:
 - Accepts a customer ID via HTTP `GET` request
